@@ -1,5 +1,5 @@
 // 离线缓存：首次打开后，没网也能练（录音、内容都在手机里）
-const V = "fn-v1";
+const V = "fn-v2";
 const CORE = ["./", "index.html", "data.json", "manifest.webmanifest", "icon-180.png", "icon-192.png",
   "audio/01.mp3", "audio/02.mp3", "audio/03.mp3", "audio/04.mp3", "audio/05.mp3"];
 self.addEventListener("install", e => {
@@ -15,6 +15,8 @@ self.addEventListener("fetch", e => {
   // 录音用 Range 请求播放，直接从缓存返回完整文件
   if (url.pathname.endsWith(".mp3")) {
     e.respondWith((async () => {
+      // 有网时直接从网上播放，没网才用手机里存的录音
+      try { return await fetch(req); } catch (err) {}
       const hit = await caches.match(url.pathname.replace(/^.*\/audio\//, "audio/"), { ignoreSearch: true })
         || await caches.match(req, { ignoreSearch: true });
       if (!hit) return fetch(req);

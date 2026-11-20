@@ -147,7 +147,7 @@ let S={stars:{},mastered:{},today:null,rate:0.9,accent:"en-US"};
 let view="today", filters={lib:"core",lsec:null,q:"",term:"t1",star:"all",text:"p01"}, review=null;
 const $=s=>document.querySelector(s);
 const esc=s=>String(s??"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
-function toast(m){const t=$("#toast");t.textContent=m;t.classList.add("show");clearTimeout(t._h);t._h=setTimeout(()=>t.classList.remove("show"),1600)}
+function toast(m,ms){const t=$("#toast");t.textContent=m;t.classList.add("show");clearTimeout(t._h);t._h=setTimeout(()=>t.classList.remove("show"),ms||1600)}
 
 /* ---------- 保存：本机缓存 + 账号同步 ---------- */
 const LK="fieldnotes-v1";
@@ -163,17 +163,25 @@ let voices=[];
 function loadVoices(){try{voices=speechSynthesis.getVoices()||[]}catch(e){}}
 if("speechSynthesis" in window){loadVoices();speechSynthesis.onvoiceschanged=loadVoices}
 function clean(t){return String(t).replace(/\(表对比\)/g,"").replace(/\.\.\./g," ").replace(/\s\/\s/g,", ").replace(/[()]/g,"").replace(/\bX\b/g,"someone").replace(/\s+/g," ").trim()}
+const IOS=/iP(hone|ad|od)/.test(navigator.userAgent)||(navigator.platform==="MacIntel"&&navigator.maxTouchPoints>1);
+let curU=null, hinted=false;
 function speak(text,rate){
   const t=clean(text); if(!t)return;
-  if("speechSynthesis" in window){
-    try{
-      speechSynthesis.cancel();
-      const u=new SpeechSynthesisUtterance(t); u.lang=S.accent; u.rate=rate||S.rate;
-      const v=voices.find(v=>v.lang===S.accent&&/natural|enhanced|premium|google|samantha|daniel/i.test(v.name))||voices.find(v=>v.lang===S.accent)||voices.find(v=>/^en/i.test(v.lang));
-      if(v)u.voice=v; speechSynthesis.speak(u); return;
-    }catch(e){}
-  }
-  toast("这个浏览器不支持发音");
+  const ss=window.speechSynthesis;
+  if(!ss||typeof SpeechSynthesisUtterance==="undefined"){toast("这个浏览器不支持发音，请用 Safari 打开");return}
+  try{
+    if(ss.speaking||ss.pending)ss.cancel();
+    if(ss.paused)ss.resume();
+    const u=new SpeechSynthesisUtterance(t); u.lang=S.accent; u.rate=rate||S.rate; u.volume=1;
+    if(!IOS){ // iPhone 上不指定具体声音，交给系统按口音选，避免选到没下载的声音而没声
+      const ok=v=>v.lang.replace("_","-")===S.accent&&!/enhanced|premium|eloquence|novelty/i.test(v.name);
+      const v=voices.find(v=>ok(v)&&/natural|google|samantha|daniel/i.test(v.name))||voices.find(ok);
+      if(v)u.voice=v;
+    }
+    let started=false; u.onstart=()=>{started=true};
+    curU=u; ss.speak(u);
+    setTimeout(()=>{if(!started&&!hinted){hinted=true;toast("没有声音？把手机侧面的静音键拨回响铃，再调大音量",5000)}},2500);
+  }catch(e){toast("发音出错了，请刷新页面再试")}
 }
 function words(text){
   return esc(text).split(/(\s+)/).map(tok=>{
